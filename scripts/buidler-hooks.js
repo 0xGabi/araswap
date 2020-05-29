@@ -14,7 +14,8 @@
 let minime, ant, tokens, voting
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-const INITIAL_ANT_TOKENS = 1000
+const INITIAL_ETH_RESERVES = '10000000000000000000' // 10 ether
+const INITIAL_ANT_TOKENS = 2000
 
 const bigExp = (x, y) =>
   web3.utils.toBN(x).mul(web3.utils.toBN(10).pow(web3.utils.toBN(y)))
@@ -30,7 +31,6 @@ module.exports = {
     { dao, _experimentalAppInstaller, log },
     { web3, artifacts }
   ) => {
-
     // Retrieve accounts.
     const accounts = await web3.eth.getAccounts()
 
@@ -79,7 +79,7 @@ module.exports = {
     return [
       ant.address,
       tokens.address,
-      bigExp(3, 15), // fee 0.3%
+      bigExp(3, 3), // fee 0.3%
     ]
   },
 
@@ -98,7 +98,9 @@ module.exports = {
     await tokens.createPermission('BURN_ROLE', proxy.address)
 
     // TODO: missing in buidler plugin
-    //await proxy.createPermission('CHANGE_FEES_ROLE', voting.address)
+    // await proxy.createPermission('CHANGE_FEES_ROLE', voting.address)
+
+    await addLiquidity(proxy, INITIAL_ANT_TOKENS)
 
     // set dao permissions to Voting
     await switchRootDaoPermissions(proxy, artifacts, web3)
@@ -123,6 +125,15 @@ async function approveTokens(accounts, minime, tokenAmount, proxy) {
   for (let index = 0; index < 3; index++) {
     await minime.approve(proxy.address, amount, { from: accounts[index] })
   }
+}
+
+async function addLiquidity(proxy, tokenAmount) {
+  const amount = decimals18(tokenAmount)
+  // add liquidity
+  const deadline = Math.floor(Date.now() / 1000 + 120) // maximum deadline 2 minutes from now
+  await proxy.addLiquidity(0, amount, deadline, {
+    value: INITIAL_ETH_RESERVES,
+  })
 }
 
 async function deployMinimeToken(artifacts, name, symbol) {
@@ -172,8 +183,14 @@ async function switchRootDaoPermissions(proxy, artifacts, web3) {
   const appManagerRole = await dao.APP_MANAGER_ROLE()
   const createPermissionsRole = await acl.CREATE_PERMISSIONS_ROLE()
 
-  await switchRole(acl, rootAccount, voting.address, dao.address, appManagerRole)
+  await switchRole(
+    acl,
+    rootAccount,
+    voting.address,
+    dao.address,
+    appManagerRole
+  )
   // TODO!!
   // setAllPermissionsOpenly runs after postInit and fails after this:
-  //await switchRole(acl, rootAccount, voting.address, acl.address, createPermissionsRole)
+  // await switchRole(acl, rootAccount, voting.address, acl.address, createPermissionsRole)
 }
